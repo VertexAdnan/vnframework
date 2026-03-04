@@ -40,11 +40,11 @@ if (!serverBuild.success) {
 
 console.log("🌐 Tarayıcı dosyaları (Hydration) hazırlanıyor...");
 const clientBuild = await Bun.build({
-  entrypoints: [clientEntry],
+  entrypoints: [clientEntry, ...pages],
   outdir: "./dist/public", 
   target: "browser",       
   minify: true,
-  splitting: true,        
+  splitting: true,
 });
 
 if (!clientBuild.success) {

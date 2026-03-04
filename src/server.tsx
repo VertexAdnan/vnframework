@@ -47,6 +47,18 @@ const server = Bun.serve<AppWebSocketData>({
             return success ? undefined : new Response("Upgrade failed", { status: 400 });
         }
 
+        // Statik dosya servisi
+        if (url.pathname.startsWith("/public/")) {
+            const filePath = isProduction 
+                ? `./dist${url.pathname}` 
+                : `.${url.pathname}`;
+            const file = Bun.file(filePath);
+            if (await file.exists()) {
+                return new Response(file);
+            }
+            return new Response("Not Found", { status: 404 });
+        }
+
         if (url.pathname.startsWith("/api")) {
             activeApiRequests += 1;
             try {
@@ -100,15 +112,33 @@ async function handlePageRequest(url: URL) {
         const pageTitle = PageModule.title || "Hoş Geldiniz";
         const pageDescription = PageModule.description || "Bu sayfa hakkında bilgi bulunmamaktadır.";
 
-        const fullTitle = `${process.env.APP_TITLE} | ${pageTitle}`;
-        const fullDescription = `${process.env.APP_DESCRIPTION} | ${pageDescription}`;
-        //const content = renderToString(<Page />);
+        const fullTitle = `${process.env.APP_TITLE || "VNFramework"} | ${pageTitle}`;
+        const fullDescription = `${process.env.APP_DESCRIPTION || "Bun ile güçlendirilmiş modern web framework"} | ${pageDescription}`;
 
         const content = renderToString(
             <Layout>
                 <Page />
             </Layout>
         );
+
+        // Client-side hydration script'leri
+        const clientScripts = isProduction
+            ? `<script>
+                window.__PAGE_PATH__ = "${url.pathname}";
+              </script>
+              <script type="module" src="/public/entry-client.js"></script>`
+            : `<script>
+                window.__PAGE_PATH__ = "${url.pathname}";
+              </script>
+              <script>/* Dev mode - hydration devredışı */</script>
+              <script>
+                const socket = new WebSocket('ws://' + location.host + '/_reload');
+                socket.onclose = () => {
+                  setTimeout(() => {
+                    fetch(location.href).then(() => location.reload());
+                  }, 300);
+                };
+              </script>`;
 
         return new Response(
             `<!DOCTYPE html>
@@ -121,7 +151,7 @@ async function handlePageRequest(url: URL) {
         </head>
         <body>
           <div id="root">${content}</div>
-          <script>/* Live Reload Kodları */</script>
+          ${clientScripts}
         </body>
       </html>`,
             { headers: { "Content-Type": "text/html; charset=utf-8" } }
