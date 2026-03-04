@@ -14,11 +14,13 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "types": [
-      "bun"
+      "bun",
+      "node"
     ]
   },
   "include": [
     "src/**/*",
-    "src/types.d.ts"
+    "src/types.d.ts",
+    "build.ts"
   ]
 }

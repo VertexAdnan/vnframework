@@ -1,6 +1,16 @@
 import { renderToString } from "react-dom/server";
 import Layout from "./components/Layout";
 
+const isProduction = process.env.NODE_ENV === "production";
+
+function getPageModulePath(path: string) {
+    return isProduction ? `./pages/${path}.js` : `./pages/${path}.tsx`;
+}
+
+function getApiModulePath(path: string) {
+    return isProduction ? `./api/${path}.js` : `./api/${path}.ts`;
+}
+
 const server = Bun.serve<AppWebSocketData>({
     port: 3000,
     async fetch(req, server) {
@@ -29,7 +39,8 @@ const server = Bun.serve<AppWebSocketData>({
 
         if (url.pathname.startsWith("/api")) {
             try {
-                const module = await import(`./api/${url.pathname.replace('/api/', '')}.ts`);
+                const apiPath = url.pathname.replace('/api/', '');
+                const module = await import(getApiModulePath(apiPath));
                 if (module.default) {
                     const query = Object.fromEntries(url.searchParams.entries());
                     const extendedReq = Object.assign(req, { query });
@@ -65,7 +76,7 @@ const server = Bun.serve<AppWebSocketData>({
 async function handlePageRequest(url: URL) {
     const path = url.pathname === "/" ? "index" : url.pathname.slice(1);
     try {
-        const PageModule = await import(`./pages/${path}.tsx`);
+        const PageModule = await import(getPageModulePath(path));
         const Page = PageModule.default;
 
         const pageTitle = PageModule.title || "Hoş Geldiniz";
@@ -105,7 +116,7 @@ async function handlePageRequest(url: URL) {
 async function handleRequest(url: URL) {
     const path = url.pathname === "/" ? "index" : url.pathname.slice(1);
     try {
-        const Page = (await import(`./pages/${path}.tsx`)).default;
+        const Page = (await import(getPageModulePath(path))).default;
         const content = renderToString(<Page />);
 
         return new Response(
@@ -141,5 +152,11 @@ async function handleRequest(url: URL) {
         return new Response("404 - Sayfa Bulunamadı", { status: 404 });
     }
 }
+
+process.on("SIGTERM", () => {
+  console.log("Sunucu kapatılıyor...");
+  server.stop();
+  process.exit(0);
+});
 
 console.log(`🚀 http://localhost:3000`);
