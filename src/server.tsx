@@ -1,12 +1,27 @@
 import { renderToString } from "react-dom/server";
-
-const server = Bun.serve({
+const server = Bun.serve<AppWebSocketData>({
     port: 3000,
     async fetch(req, server) {
         const url = new URL(req.url);
 
+        if (url.pathname === "/ws") {
+            const room = url.searchParams.get("room") || "global";
+            const success = server.upgrade(req, {
+                data: {
+                    createdAt: Date.now(),
+                    room: room 
+                },
+            });
+            return success ? undefined : new Response("Upgrade failed", { status: 400 });
+        }
+
         if (url.pathname === "/_reload") {
-            const success = server.upgrade(req);
+            const success = server.upgrade(req, {
+                data: {
+                    createdAt: Date.now(),
+                    room: "_reload",
+                },
+            });
             return success ? undefined : new Response("Upgrade failed", { status: 400 });
         }
 
@@ -26,9 +41,21 @@ const server = Bun.serve({
         return handlePageRequest(url);
     },
     websocket: {
-        message() { },
         open(ws) {
-            console.log("Tarayıcı Live-Reload'a bağlandı");
+            const { room } = ws.data as any;
+            ws.subscribe(room);
+            console.log(`Yeni bağlantı: ${room} odasına katıldı`);
+        },
+
+        message(ws, message) {
+            const { room } = ws.data as any;
+            ws.publish(room, message);
+        },
+
+        close(ws) {
+            const { room } = ws.data as any;
+            ws.unsubscribe(room);
+            console.log("Bağlantı kapandı");
         },
     },
 });
@@ -59,7 +86,7 @@ async function handleRequest(url: URL) {
       <!DOCTYPE html>
       <html lang="tr">
         <head>
-          <meta charset="UTF-8"> <!-- 1. KRİTİK EKLEME -->
+          <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Mini Next</title>
         </head>
@@ -67,7 +94,6 @@ async function handleRequest(url: URL) {
           <div id="root">${content}</div>
 
           <script>
-            // Live Reload Scripti (Önceki adımda eklediğimiz)
             const socket = new WebSocket('ws://' + location.host + '/_reload');
             socket.onclose = () => {
               setTimeout(() => {
