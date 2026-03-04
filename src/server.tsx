@@ -12,15 +12,14 @@ const server = Bun.serve({
 
         if (url.pathname.startsWith("/api")) {
             try {
-                const apiFilePath = `.${url.pathname}.ts`;
-
                 const module = await import(`./api/${url.pathname.replace('/api/', '')}.ts`);
-
                 if (module.default) {
-                    return module.default(req);
+                    const query = Object.fromEntries(url.searchParams.entries());
+                    const extendedReq = Object.assign(req, { query });
+                    return module.default(extendedReq);
                 }
             } catch (e) {
-                return Response.json({ error: "API rotası bulunamadı" }, { status: 404 });
+                return Response.json({ error: "API not found" }, { status: 404 });
             }
         }
 

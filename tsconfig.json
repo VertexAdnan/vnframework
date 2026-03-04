@@ -16,5 +16,9 @@
     "types": [
       "bun"
     ]
-  }
+  },
+  "include": [
+    "src/**/*",
+    "types.d.ts"
+  ]
 }
