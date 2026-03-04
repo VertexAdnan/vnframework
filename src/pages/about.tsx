@@ -1,3 +1,6 @@
+export const title = "Hakkımızda";
+export const description = "Bu sayfa hakkında bilgiler içermektedir.";
+
 export default function About() {
   return (
     <div className="p-10">
