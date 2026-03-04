@@ -2,6 +2,9 @@ import { renderToString } from "react-dom/server";
 import Layout from "./components/Layout";
 
 const isProduction = process.env.NODE_ENV === "production";
+let isShuttingDown = false;
+let activeApiRequests = 0;
+let resolveDrain: (() => void) | null = null;
 
 function getPageModulePath(path: string) {
     return isProduction ? `./pages/${path}.js` : `./pages/${path}.tsx`;
@@ -14,6 +17,13 @@ function getApiModulePath(path: string) {
 const server = Bun.serve<AppWebSocketData>({
     port: 3000,
     async fetch(req, server) {
+        if (isShuttingDown) {
+            return new Response("Server yeniden başlatılıyor", {
+                status: 503,
+                headers: { "Retry-After": "1" },
+            });
+        }
+
         const url = new URL(req.url);
 
         if (url.pathname === "/ws") {
@@ -38,6 +48,7 @@ const server = Bun.serve<AppWebSocketData>({
         }
 
         if (url.pathname.startsWith("/api")) {
+            activeApiRequests += 1;
             try {
                 const apiPath = url.pathname.replace('/api/', '');
                 const module = await import(getApiModulePath(apiPath));
@@ -46,8 +57,15 @@ const server = Bun.serve<AppWebSocketData>({
                     const extendedReq = Object.assign(req, { query });
                     return module.default(extendedReq);
                 }
+                return Response.json({ error: "API not found" }, { status: 404 });
             } catch (e) {
                 return Response.json({ error: "API not found" }, { status: 404 });
+            } finally {
+                activeApiRequests -= 1;
+                if (isShuttingDown && activeApiRequests === 0 && resolveDrain) {
+                    resolveDrain();
+                    resolveDrain = null;
+                }
             }
         }
 
@@ -154,9 +172,35 @@ async function handleRequest(url: URL) {
 }
 
 process.on("SIGTERM", () => {
-  console.log("Sunucu kapatılıyor...");
-  server.stop();
-  process.exit(0);
+    gracefulShutdown();
 });
+
+process.on("SIGINT", () => {
+    gracefulShutdown();
+});
+
+async function gracefulShutdown() {
+    if (isShuttingDown) {
+        return;
+    }
+
+    isShuttingDown = true;
+    console.log("Sunucu soft restart için beklemeye alındı...");
+    server.stop(false);
+
+    if (activeApiRequests > 0) {
+        await Promise.race([
+            new Promise<void>((resolve) => {
+                resolveDrain = resolve;
+            }),
+            new Promise<void>((resolve) => {
+                setTimeout(resolve, 30000);
+            }),
+        ]);
+    }
+
+    console.log("Sunucu kapanıyor...");
+    process.exit(0);
+}
 
 console.log(`🚀 http://localhost:3000`);

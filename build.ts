@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 
 async function globFiles(pattern: string) {
   const files: string[] = [];
@@ -55,6 +56,14 @@ if (!clientBuild.success) {
 if (fs.existsSync("./public")) {
   fs.cpSync("./public", "./dist/public", { recursive: true });
 }
+
+const runtimeDir = path.resolve(".runtime");
+const restartSignalFile = path.join(runtimeDir, "restart.signal");
+
+fs.mkdirSync(runtimeDir, { recursive: true });
+fs.writeFileSync(restartSignalFile, new Date().toISOString());
+
+console.log("♻️ Çalışan production sunucu varsa soft restart tetiklendi.");
 
 console.log(`
 ✅ Derleme başarıyla tamamlandı!

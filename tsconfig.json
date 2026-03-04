@@ -21,6 +21,7 @@
   "include": [
     "src/**/*",
     "src/types.d.ts",
-    "build.ts"
+    "build.ts",
+    "manager.ts"
   ]
 }
