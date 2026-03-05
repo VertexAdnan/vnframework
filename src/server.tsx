@@ -1,11 +1,19 @@
 import { renderToString } from "react-dom/server";
 import Layout from "./components/Layout";
 import { initializeDatabases, closeDatabases } from "./config/database";
+import { RateLimiter } from "./helpers/rate-limiter";
 
 const isProduction = process.env.NODE_ENV === "production";
 let isShuttingDown = false;
 let activeApiRequests = 0;
 let resolveDrain: (() => void) | null = null;
+
+const rateLimitWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000);
+const rateLimitMaxRequests = Number(process.env.RATE_LIMIT_MAX_REQUESTS || 60);
+const apiRateLimiter = new RateLimiter({
+    windowMs: Number.isFinite(rateLimitWindowMs) && rateLimitWindowMs > 0 ? rateLimitWindowMs : 60_000,
+    maxRequests: Number.isFinite(rateLimitMaxRequests) && rateLimitMaxRequests > 0 ? rateLimitMaxRequests : 60,
+});
 
 function getPageModulePath(path: string) {
     return isProduction ? `./pages/${path}.js` : `./pages/${path}.tsx`;
@@ -13,6 +21,21 @@ function getPageModulePath(path: string) {
 
 function getApiModulePath(path: string) {
     return isProduction ? `./api/${path}.js` : `./api/${path}.ts`;
+}
+
+function getClientIp(req: Request, server: Bun.Server<AppWebSocketData>) {
+    const forwardedFor = req.headers.get("x-forwarded-for");
+    if (forwardedFor) {
+        return forwardedFor.split(",")[0]?.trim() || "unknown";
+    }
+
+    const realIp = req.headers.get("x-real-ip");
+    if (realIp) {
+        return realIp;
+    }
+
+    const address = server.requestIP(req);
+    return address?.address || "unknown";
 }
 
 const server = Bun.serve<AppWebSocketData>({
@@ -61,6 +84,27 @@ const server = Bun.serve<AppWebSocketData>({
         }
 
         if (url.pathname.startsWith("/api")) {
+            const clientIp = getClientIp(req, server);
+            const rateLimitResult = apiRateLimiter.check(clientIp);
+
+            if (!rateLimitResult.allowed) {
+                return Response.json(
+                    {
+                        error: "Too many requests",
+                        message: "Rate limit aşıldı. Lütfen biraz sonra tekrar deneyin.",
+                    },
+                    {
+                        status: 429,
+                        headers: {
+                            "Retry-After": String(rateLimitResult.retryAfterSeconds),
+                            "X-RateLimit-Limit": String(rateLimitResult.limit),
+                            "X-RateLimit-Remaining": String(rateLimitResult.remaining),
+                            "X-RateLimit-Reset": String(Math.floor(rateLimitResult.resetAt / 1000)),
+                        },
+                    }
+                );
+            }
+
             activeApiRequests += 1;
             try {
                 const apiPath = url.pathname.replace('/api/', '');
@@ -232,6 +276,7 @@ async function gracefulShutdown() {
 
     // Database bağlantılarını kapat
     await closeDatabases();
+    apiRateLimiter.stop();
 
     console.log("Sunucu kapanıyor...");
     process.exit(0);
