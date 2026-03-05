@@ -1,5 +1,6 @@
 import { renderToString } from "react-dom/server";
 import Layout from "./components/Layout";
+import { initializeDatabases, closeDatabases } from "./config/database";
 
 const isProduction = process.env.NODE_ENV === "production";
 let isShuttingDown = false;
@@ -229,8 +230,14 @@ async function gracefulShutdown() {
         ]);
     }
 
+    // Database bağlantılarını kapat
+    await closeDatabases();
+
     console.log("Sunucu kapanıyor...");
     process.exit(0);
 }
+
+// Database bağlantılarını başlat
+await initializeDatabases();
 
 console.log(`🚀 http://localhost:3000`);

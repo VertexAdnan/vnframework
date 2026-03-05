@@ -4,7 +4,7 @@ import { spawn, type ChildProcess } from "child_process";
 
 const runtimeDir = path.resolve(".runtime");
 const restartSignalFile = path.join(runtimeDir, "restart.signal");
-const serverEntry = path.resolve("dist/server.js");
+const serverEntry = path.resolve("dist/src/server.js");
 
 let child: ChildProcess | null = null;
 let isRestarting = false;

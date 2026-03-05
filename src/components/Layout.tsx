@@ -6,7 +6,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <header style={{ padding: "1rem", background: "#333", color: "white" }}>
         <nav>
           <a href="/" style={{ color: "white", marginRight: "15px" }}>Ana Sayfa</a>
-          <a href="/about" style={{ color: "white" }}>Hakkımızda</a>
+          <a href="/about" style={{ color: "white", marginRight: "15px" }}>Hakkımızda</a>
+          <a href="/database" style={{ color: "white" }}>Database Demo</a>
         </nav>
       </header>
 
