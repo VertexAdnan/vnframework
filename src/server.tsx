@@ -73,9 +73,16 @@ const server = Bun.serve<AppWebSocketData>({
 
         // Statik dosya servisi
         if (url.pathname.startsWith("/public/")) {
-            const filePath = isProduction 
-                ? `./dist${url.pathname}` 
-                : `.${url.pathname}`;
+            const filePath = `.${url.pathname}`;
+            const file = Bun.file(filePath);
+            if (await file.exists()) {
+                return new Response(file);
+            }
+            return new Response("Not Found", { status: 404 });
+        }
+
+        if (isProduction && url.pathname.startsWith("/assets/")) {
+            const filePath = `./dist${url.pathname}`;
             const file = Bun.file(filePath);
             if (await file.exists()) {
                 return new Response(file);
@@ -171,7 +178,7 @@ async function handlePageRequest(url: URL) {
             ? `<script>
                 window.__PAGE_PATH__ = "${url.pathname}";
               </script>
-              <script type="module" src="/public/entry-client.js"></script>`
+                            <script type="module" src="/assets/entry-client.js"></script>`
             : `<script>
                 window.__PAGE_PATH__ = "${url.pathname}";
               </script>

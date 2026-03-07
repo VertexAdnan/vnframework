@@ -71,7 +71,7 @@ if (!serverBuild.success) {
 console.log("🌐 Tarayıcı dosyaları (Hydration) hazırlanıyor...");
 const clientBuild = await Bun.build({
   entrypoints: [clientEntry, ...pages],
-  outdir: path.join(DIST_TMP_DIR, "public"), 
+  outdir: path.join(DIST_TMP_DIR, "assets"), 
   target: "browser",       
   minify: true,
   splitting: true,
@@ -81,10 +81,6 @@ if (!clientBuild.success) {
   console.error("❌ İstemci derlemesi başarısız!");
   console.error(clientBuild.logs);
   process.exit(1);
-}
-
-if (fs.existsSync("./public")) {
-  fs.cpSync("./public", path.join(DIST_TMP_DIR, "public"), { recursive: true });
 }
 
 commitBuildOutput();
@@ -101,7 +97,8 @@ console.log(`
 ✅ Derleme başarıyla tamamlandı!
 ---------------------------------
 📁 Sunucu: dist/server.js
-📁 Statik/JS: dist/public/
+📁 Client JS: dist/assets/
+📁 Statik dosyalar: public/
 ---------------------------------
 Çalıştırmak için: bun start
 `);

@@ -108,5 +108,6 @@ export default async function handler(req: Request) {
 ## Notlar
 
 - Statik dosya servisi `public/*` yollarını sunduğu için `url` alanı doğrudan tarayıcıda erişilebilir.
-- Production'da `npm run build` sonrası dosyalar `dist/public` içine taşınır.
+- `public` klasoru build'den bagimsizdir; upload dosyalari build'de silinmez.
+- Production'da JS bundle dosyalari `dist/assets` altindan servis edilir.
 - Dosya adları çakışmayı engellemek için otomatik benzersiz üretilir.
