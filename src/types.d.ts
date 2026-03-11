@@ -27,5 +27,22 @@ declare global {
 
   interface Request {
     query: Record<string, string | string[] | undefined>;
+    session?: AppSession;
+    cookies?: Record<string, string>;
+  }
+
+  interface AppSession {
+    id: string;
+    data: Record<string, any>;
+    createdAt: number;
+    expiresAt: number;
+  }
+
+  interface AppSessionOptions {
+    maxAge?: number; // milliseconds
+    cookieName?: string;
+    httpOnly?: boolean;
+    secure?: boolean;
+    sameSite?: "Strict" | "Lax" | "None";
   }
 }

@@ -2,6 +2,8 @@ import { renderToString } from "react-dom/server";
 import Layout from "./components/Layout";
 import { initializeDatabases, closeDatabases } from "./config/database";
 import { RateLimiter } from "./helpers/rate-limiter";
+import { SessionManager } from "./helpers/session-manager";
+import { attachCookies } from "./helpers/cookie-parser";
 
 const isProduction = process.env.NODE_ENV === "production";
 let isShuttingDown = false;
@@ -14,6 +16,18 @@ const apiRateLimiter = new RateLimiter({
     windowMs: Number.isFinite(rateLimitWindowMs) && rateLimitWindowMs > 0 ? rateLimitWindowMs : 60_000,
     maxRequests: Number.isFinite(rateLimitMaxRequests) && rateLimitMaxRequests > 0 ? rateLimitMaxRequests : 60,
 });
+
+// Session Manager
+const sessionMaxAge = Number(process.env.SESSION_MAX_AGE || 24 * 60 * 60 * 1000); // 24 saat
+const sessionManager = new SessionManager({
+    maxAge: Number.isFinite(sessionMaxAge) && sessionMaxAge > 0 ? sessionMaxAge : 24 * 60 * 60 * 1000,
+    cookieName: process.env.SESSION_COOKIE_NAME || "session_id",
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Lax",
+});
+
+export { sessionManager }; // Export for API routes
 
 function getPageModulePath(path: string) {
     return isProduction ? `./pages/${path}.js` : `./pages/${path}.tsx`;
@@ -118,7 +132,20 @@ const server = Bun.serve<AppWebSocketData>({
                 const module = await import(getApiModulePath(apiPath));
                 if (module.default) {
                     const query = Object.fromEntries(url.searchParams.entries());
-                    const extendedReq = Object.assign(req, { query });
+                    
+                    // Cookie'leri parse et
+                    const reqWithCookies = attachCookies(req);
+                    
+                    // Session'ı yükle (varsa)
+                    const sessionId = reqWithCookies.cookies?.[sessionManager.getCookieName()];
+                    if (sessionId) {
+                        const session = sessionManager.get(sessionId);
+                        if (session) {
+                            Object.assign(reqWithCookies, { session });
+                        }
+                    }
+                    
+                    const extendedReq = Object.assign(reqWithCookies, { query });
                     return module.default(extendedReq);
                 }
                 return Response.json({ error: "API not found" }, { status: 404 });
